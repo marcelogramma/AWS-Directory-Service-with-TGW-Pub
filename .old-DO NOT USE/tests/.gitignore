@@ -1,0 +1,30 @@
+# Archivos binarios de Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Archivos de prueba
+*.test
+*.out
+*.prof
+*.cover
+coverage.txt
+coverage.html
+
+# Archivos temporales
+*.tmp
+*.temp
+*.log
+
+# Directorios de dependencias
+vendor/
+go.sum
+
+# Archivos de IDE y editores
+.idea/
+.vscode/
+*.swp
+*.swo
+*~

@@ -1,0 +1,370 @@
+#!/bin/bash
+
+# Cargar variables de entorno desde el archivo .env
+if [ -f .env ]; then
+  echo "Cargando variables de entorno desde .env..."
+  export $(grep -v '^#' .env | xargs)
+else
+  echo "Error: Archivo .env no encontrado"
+  exit 1
+fi
+
+# Configurar credenciales de AWS para cada cuenta
+#mkdir -p ~/.aws
+
+#cat > ~/.aws/credentials << EOF
+#[operaciones]
+#aws_access_key_id = $AWS_ACCESS_KEY_ID_OPERACIONES
+#aws_secret_access_key = $AWS_SECRET_ACCESS_KEY_OPERACIONES
+
+#[dev]
+#aws_access_key_id = $AWS_ACCESS_KEY_ID_DEV
+#aws_secret_access_key = $AWS_SECRET_ACCESS_KEY_DEV
+
+#[stage]
+#aws_access_key_id = $AWS_ACCESS_KEY_ID_STAGE
+#aws_secret_access_key = $AWS_SECRET_ACCESS_KEY_STAGE
+
+#[prod]
+#aws_access_key_id = $AWS_ACCESS_KEY_ID_PROD
+#aws_secret_access_key = $AWS_SECRET_ACCESS_KEY_PROD
+#EOF
+
+#chmod 600 ~/.aws/credentials
+
+# Obtener IDs de las VPCs
+echo "Obteniendo IDs de las VPCs..."
+VPC_OPERACIONES_DEV=$(terraform output -json vpc_ids | jq -r '.operaciones_dev')
+VPC_OPERACIONES_STAGE=$(terraform output -json vpc_ids | jq -r '.operaciones_stage')
+VPC_OPERACIONES_PROD=$(terraform output -json vpc_ids | jq -r '.operaciones_prod')
+VPC_DEV=$(terraform output -json vpc_ids | jq -r '.dev')
+VPC_STAGE=$(terraform output -json vpc_ids | jq -r '.stage')
+VPC_PROD=$(terraform output -json vpc_ids | jq -r '.prod')
+
+echo "VPC Operaciones Dev: $VPC_OPERACIONES_DEV"
+echo "VPC Operaciones Stage: $VPC_OPERACIONES_STAGE"
+echo "VPC Operaciones Prod: $VPC_OPERACIONES_PROD"
+echo "VPC Dev: $VPC_DEV"
+echo "VPC Stage: $VPC_STAGE"
+echo "VPC Prod: $VPC_PROD"
+
+# Obtener IDs de las subnets públicas
+echo "Obteniendo IDs de las subnets públicas..."
+SUBNET_OPERACIONES_DEV=$(aws ec2 describe-subnets --profile operaciones --filters "Name=vpc-id,Values=$VPC_OPERACIONES_DEV" "Name=tag:Name,Values=*public*" "Name=map-public-ip-on-launch,Values=true" --query "Subnets[0].SubnetId" --output text)
+SUBNET_OPERACIONES_STAGE=$(aws ec2 describe-subnets --profile operaciones --filters "Name=vpc-id,Values=$VPC_OPERACIONES_STAGE" "Name=tag:Name,Values=*public*" "Name=map-public-ip-on-launch,Values=true" --query "Subnets[0].SubnetId" --output text)
+SUBNET_OPERACIONES_PROD=$(aws ec2 describe-subnets --profile operaciones --filters "Name=vpc-id,Values=$VPC_OPERACIONES_PROD" "Name=tag:Name,Values=*public*" "Name=map-public-ip-on-launch,Values=true" --query "Subnets[0].SubnetId" --output text)
+SUBNET_DEV=$(aws ec2 describe-subnets --profile dev --filters "Name=vpc-id,Values=$VPC_DEV" "Name=tag:Name,Values=*public*" "Name=map-public-ip-on-launch,Values=true" --query "Subnets[0].SubnetId" --output text)
+SUBNET_STAGE=$(aws ec2 describe-subnets --profile stage --filters "Name=vpc-id,Values=$VPC_STAGE" "Name=tag:Name,Values=*public*" "Name=map-public-ip-on-launch,Values=true" --query "Subnets[0].SubnetId" --output text)
+SUBNET_PROD=$(aws ec2 describe-subnets --profile prod --filters "Name=vpc-id,Values=$VPC_PROD" "Name=tag:Name,Values=*public*" "Name=map-public-ip-on-launch,Values=true" --query "Subnets[0].SubnetId" --output text)
+
+# Verificar que se encontraron subnets públicas
+if [ -z "$SUBNET_OPERACIONES_DEV" ] || [ "$SUBNET_OPERACIONES_DEV" == "None" ]; then
+  echo "No se encontró subnet pública para Operaciones Dev. Buscando cualquier subnet..."
+  SUBNET_OPERACIONES_DEV=$(aws ec2 describe-subnets --profile operaciones --filters "Name=vpc-id,Values=$VPC_OPERACIONES_DEV" --query "Subnets[0].SubnetId" --output text)
+  echo "Configurando subnet para asignar IP pública automáticamente..."
+  aws ec2 modify-subnet-attribute --profile operaciones --subnet-id $SUBNET_OPERACIONES_DEV --map-public-ip-on-launch
+fi
+
+if [ -z "$SUBNET_OPERACIONES_STAGE" ] || [ "$SUBNET_OPERACIONES_STAGE" == "None" ]; then
+  echo "No se encontró subnet pública para Operaciones Stage. Buscando cualquier subnet..."
+  SUBNET_OPERACIONES_STAGE=$(aws ec2 describe-subnets --profile operaciones --filters "Name=vpc-id,Values=$VPC_OPERACIONES_STAGE" --query "Subnets[0].SubnetId" --output text)
+  echo "Configurando subnet para asignar IP pública automáticamente..."
+  aws ec2 modify-subnet-attribute --profile operaciones --subnet-id $SUBNET_OPERACIONES_STAGE --map-public-ip-on-launch
+fi
+
+if [ -z "$SUBNET_OPERACIONES_PROD" ] || [ "$SUBNET_OPERACIONES_PROD" == "None" ]; then
+  echo "No se encontró subnet pública para Operaciones Prod. Buscando cualquier subnet..."
+  SUBNET_OPERACIONES_PROD=$(aws ec2 describe-subnets --profile operaciones --filters "Name=vpc-id,Values=$VPC_OPERACIONES_PROD" --query "Subnets[0].SubnetId" --output text)
+  echo "Configurando subnet para asignar IP pública automáticamente..."
+  aws ec2 modify-subnet-attribute --profile operaciones --subnet-id $SUBNET_OPERACIONES_PROD --map-public-ip-on-launch
+fi
+
+if [ -z "$SUBNET_DEV" ] || [ "$SUBNET_DEV" == "None" ]; then
+  echo "No se encontró subnet pública para Dev. Buscando cualquier subnet..."
+  SUBNET_DEV=$(aws ec2 describe-subnets --profile dev --filters "Name=vpc-id,Values=$VPC_DEV" --query "Subnets[0].SubnetId" --output text)
+  echo "Configurando subnet para asignar IP pública automáticamente..."
+  aws ec2 modify-subnet-attribute --profile dev --subnet-id $SUBNET_DEV --map-public-ip-on-launch
+fi
+
+if [ -z "$SUBNET_STAGE" ] || [ "$SUBNET_STAGE" == "None" ]; then
+  echo "No se encontró subnet pública para Stage. Buscando cualquier subnet..."
+  SUBNET_STAGE=$(aws ec2 describe-subnets --profile stage --filters "Name=vpc-id,Values=$VPC_STAGE" --query "Subnets[0].SubnetId" --output text)
+  echo "Configurando subnet para asignar IP pública automáticamente..."
+  aws ec2 modify-subnet-attribute --profile stage --subnet-id $SUBNET_STAGE --map-public-ip-on-launch
+fi
+
+if [ -z "$SUBNET_PROD" ] || [ "$SUBNET_PROD" == "None" ]; then
+  echo "No se encontró subnet pública para Prod. Buscando cualquier subnet..."
+  SUBNET_PROD=$(aws ec2 describe-subnets --profile prod --filters "Name=vpc-id,Values=$VPC_PROD" --query "Subnets[0].SubnetId" --output text)
+  echo "Configurando subnet para asignar IP pública automáticamente..."
+  aws ec2 modify-subnet-attribute --profile prod --subnet-id $SUBNET_PROD --map-public-ip-on-launch
+fi
+
+echo "Subnet Operaciones Dev: $SUBNET_OPERACIONES_DEV"
+echo "Subnet Operaciones Stage: $SUBNET_OPERACIONES_STAGE"
+echo "Subnet Operaciones Prod: $SUBNET_OPERACIONES_PROD"
+echo "Subnet Dev: $SUBNET_DEV"
+echo "Subnet Stage: $SUBNET_STAGE"
+echo "Subnet Prod: $SUBNET_PROD"
+
+# Crear grupos de seguridad para las instancias de prueba
+echo "Creando grupos de seguridad..."
+
+# Grupo de seguridad para Operaciones
+SG_OPERACIONES=$(aws ec2 create-security-group --profile operaciones --group-name "test-connectivity-sg-operaciones" --description "Security group for testing connectivity" --vpc-id $VPC_OPERACIONES_DEV --query "GroupId" --output text)
+aws ec2 authorize-security-group-ingress --profile operaciones --group-id $SG_OPERACIONES --protocol icmp --port -1 --cidr 0.0.0.0/0
+aws ec2 authorize-security-group-ingress --profile operaciones --group-id $SG_OPERACIONES --protocol tcp --port 22 --cidr 0.0.0.0/0
+
+# Grupo de seguridad para Dev
+SG_DEV=$(aws ec2 create-security-group --profile dev --group-name "test-connectivity-sg-dev" --description "Security group for testing connectivity" --vpc-id $VPC_DEV --query "GroupId" --output text)
+aws ec2 authorize-security-group-ingress --profile dev --group-id $SG_DEV --protocol icmp --port -1 --cidr 0.0.0.0/0
+aws ec2 authorize-security-group-ingress --profile dev --group-id $SG_DEV --protocol tcp --port 22 --cidr 0.0.0.0/0
+
+# Grupo de seguridad para Stage
+SG_STAGE=$(aws ec2 create-security-group --profile stage --group-name "test-connectivity-sg-stage" --description "Security group for testing connectivity" --vpc-id $VPC_STAGE --query "GroupId" --output text)
+aws ec2 authorize-security-group-ingress --profile stage --group-id $SG_STAGE --protocol icmp --port -1 --cidr 0.0.0.0/0
+aws ec2 authorize-security-group-ingress --profile stage --group-id $SG_STAGE --protocol tcp --port 22 --cidr 0.0.0.0/0
+
+# Grupo de seguridad para Prod
+SG_PROD=$(aws ec2 create-security-group --profile prod --group-name "test-connectivity-sg-prod" --description "Security group for testing connectivity" --vpc-id $VPC_PROD --query "GroupId" --output text)
+aws ec2 authorize-security-group-ingress --profile prod --group-id $SG_PROD --protocol icmp --port -1 --cidr 0.0.0.0/0
+aws ec2 authorize-security-group-ingress --profile prod --group-id $SG_PROD --protocol tcp --port 22 --cidr 0.0.0.0/0
+
+echo "Grupos de seguridad creados:"
+echo "SG Operaciones: $SG_OPERACIONES"
+echo "SG Dev: $SG_DEV"
+echo "SG Stage: $SG_STAGE"
+echo "SG Prod: $SG_PROD"
+
+# Crear instancias EC2 para pruebas de conectividad
+echo "Creando instancias EC2 para pruebas de conectividad..."
+
+# Crear key pair para las instancias
+aws ec2 create-key-pair --profile operaciones --key-name test-connectivity-key --query "KeyMaterial" --output text > test-connectivity-key.pem
+aws ec2 create-key-pair --profile dev --key-name test-connectivity-key --query "KeyMaterial" --output text > test-connectivity-key.pem
+aws ec2 create-key-pair --profile stage --key-name test-connectivity-key --query "KeyMaterial" --output text > test-connectivity-key.pem
+aws ec2 create-key-pair --profile prod --key-name test-connectivity-key --query "KeyMaterial" --output text > test-connectivity-key.pem
+
+
+# Crear instancia en Operaciones
+INSTANCE_OPERACIONES=$(aws ec2 run-instances --profile operaciones --image-id ami-085386e29e44dacd7 --instance-type t2.micro --key-name test-connectivity-key --security-group-ids $SG_OPERACIONES --subnet-id $SUBNET_OPERACIONES_DEV --associate-public-ip-address --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=test-connectivity-operaciones}]' --query "Instances[0].InstanceId" --output text)
+
+# Crear instancia en Dev
+INSTANCE_DEV=$(aws ec2 run-instances --profile dev --image-id ami-085386e29e44dacd7 --instance-type t2.micro --key-name test-connectivity-key --security-group-ids $SG_DEV --subnet-id $SUBNET_DEV --associate-public-ip-address --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=test-connectivity-dev}]' --query "Instances[0].InstanceId" --output text)
+
+# Crear instancia en Stage
+INSTANCE_STAGE=$(aws ec2 run-instances --profile stage --image-id ami-085386e29e44dacd7 --instance-type t2.micro --key-name test-connectivity-key --security-group-ids $SG_STAGE --subnet-id $SUBNET_STAGE --associate-public-ip-address --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=test-connectivity-stage}]' --query "Instances[0].InstanceId" --output text)
+
+# Crear instancia en Prod
+INSTANCE_PROD=$(aws ec2 run-instances --profile prod --image-id ami-085386e29e44dacd7 --instance-type t2.micro --key-name test-connectivity-key --security-group-ids $SG_PROD --subnet-id $SUBNET_PROD --associate-public-ip-address --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=test-connectivity-prod}]' --query "Instances[0].InstanceId" --output text)
+
+echo "Instancias creadas:"
+echo "Instancia Operaciones: $INSTANCE_OPERACIONES"
+echo "Instancia Dev: $INSTANCE_DEV"
+echo "Instancia Stage: $INSTANCE_STAGE"
+echo "Instancia Prod: $INSTANCE_PROD"
+
+# Esperar a que las instancias estén en estado running
+echo "Esperando a que las instancias estén en estado running..."
+aws ec2 wait instance-running --profile operaciones --instance-ids $INSTANCE_OPERACIONES
+aws ec2 wait instance-running --profile dev --instance-ids $INSTANCE_DEV
+aws ec2 wait instance-running --profile stage --instance-ids $INSTANCE_STAGE
+aws ec2 wait instance-running --profile prod --instance-ids $INSTANCE_PROD
+
+# Obtener IPs privadas de las instancias
+IP_OPERACIONES=$(aws ec2 describe-instances --profile operaciones --instance-ids $INSTANCE_OPERACIONES --query "Reservations[0].Instances[0].PrivateIpAddress" --output text)
+IP_DEV=$(aws ec2 describe-instances --profile dev --instance-ids $INSTANCE_DEV --query "Reservations[0].Instances[0].PrivateIpAddress" --output text)
+IP_STAGE=$(aws ec2 describe-instances --profile stage --instance-ids $INSTANCE_STAGE --query "Reservations[0].Instances[0].PrivateIpAddress" --output text)
+IP_PROD=$(aws ec2 describe-instances --profile prod --instance-ids $INSTANCE_PROD --query "Reservations[0].Instances[0].PrivateIpAddress" --output text)
+
+echo "IPs privadas de las instancias:"
+echo "IP Operaciones: $IP_OPERACIONES"
+echo "IP Dev: $IP_DEV"
+echo "IP Stage: $IP_STAGE"
+echo "IP Prod: $IP_PROD"
+
+# Crear script de prueba de conectividad para cada instancia con formato JSON para los resultados
+cat > test_operaciones.sh << EOF
+#!/bin/bash
+echo "Prueba de conectividad desde Operaciones:"
+echo "Ping a Dev ($IP_DEV):"
+ping -c 3 $IP_DEV
+echo "Ping a Stage ($IP_STAGE):"
+ping -c 3 $IP_STAGE
+echo "Ping a Prod ($IP_PROD):"
+ping -c 3 $IP_PROD
+EOF
+
+cat > test_dev.sh << EOF
+#!/bin/bash
+echo "Prueba de conectividad desde Dev:"
+echo "Ping a Operaciones ($IP_OPERACIONES):"
+ping -c 3 $IP_OPERACIONES
+echo "Ping a Stage ($IP_STAGE):"
+ping -c 3 $IP_STAGE
+echo "Ping a Prod ($IP_PROD):"
+ping -c 3 $IP_PROD
+EOF
+
+cat > test_stage.sh << EOF
+#!/bin/bash
+echo "Prueba de conectividad desde Stage:"
+echo "Ping a Operaciones ($IP_OPERACIONES):"
+ping -c 3 $IP_OPERACIONES
+echo "Ping a Dev ($IP_DEV):"
+ping -c 3 $IP_DEV
+echo "Ping a Prod ($IP_PROD):"
+ping -c 3 $IP_PROD
+EOF
+
+cat > test_prod.sh << EOF
+#!/bin/bash
+echo "Prueba de conectividad desde Prod:"
+echo "Ping a Operaciones ($IP_OPERACIONES):"
+ping -c 3 $IP_OPERACIONES
+echo "Ping a Dev ($IP_DEV):"
+ping -c 3 $IP_DEV
+echo "Ping a Stage ($IP_STAGE):"
+ping -c 3 $IP_STAGE
+EOF
+
+chmod +x test_*.sh
+
+# Obtener IPs públicas de las instancias
+echo "Esperando a que las IPs públicas estén disponibles..."
+sleep 10
+
+PUBLIC_IP_OPERACIONES=$(aws ec2 describe-instances --profile operaciones --instance-ids $INSTANCE_OPERACIONES --query "Reservations[0].Instances[0].PublicIpAddress" --output text)
+PUBLIC_IP_DEV=$(aws ec2 describe-instances --profile dev --instance-ids $INSTANCE_DEV --query "Reservations[0].Instances[0].PublicIpAddress" --output text)
+PUBLIC_IP_STAGE=$(aws ec2 describe-instances --profile stage --instance-ids $INSTANCE_STAGE --query "Reservations[0].Instances[0].PublicIpAddress" --output text)
+PUBLIC_IP_PROD=$(aws ec2 describe-instances --profile prod --instance-ids $INSTANCE_PROD --query "Reservations[0].Instances[0].PublicIpAddress" --output text)
+
+# Verificar que todas las instancias tienen IPs públicas
+if [ -z "$PUBLIC_IP_OPERACIONES" ] || [ "$PUBLIC_IP_OPERACIONES" == "None" ]; then
+  echo "Error: La instancia de Operaciones no tiene IP pública asignada."
+  echo "Asignando IP elástica..."
+  ELASTIC_IP_OPERACIONES=$(aws ec2 allocate-address --profile operaciones --domain vpc --query "AllocationId" --output text)
+  aws ec2 associate-address --profile operaciones --instance-id $INSTANCE_OPERACIONES --allocation-id $ELASTIC_IP_OPERACIONES
+  PUBLIC_IP_OPERACIONES=$(aws ec2 describe-addresses --profile operaciones --allocation-ids $ELASTIC_IP_OPERACIONES --query "Addresses[0].PublicIp" --output text)
+fi
+
+if [ -z "$PUBLIC_IP_DEV" ] || [ "$PUBLIC_IP_DEV" == "None" ]; then
+  echo "Error: La instancia de Dev no tiene IP pública asignada."
+  echo "Asignando IP elástica..."
+  ELASTIC_IP_DEV=$(aws ec2 allocate-address --profile dev --domain vpc --query "AllocationId" --output text)
+  aws ec2 associate-address --profile dev --instance-id $INSTANCE_DEV --allocation-id $ELASTIC_IP_DEV
+  PUBLIC_IP_DEV=$(aws ec2 describe-addresses --profile dev --allocation-ids $ELASTIC_IP_DEV --query "Addresses[0].PublicIp" --output text)
+fi
+
+if [ -z "$PUBLIC_IP_STAGE" ] || [ "$PUBLIC_IP_STAGE" == "None" ]; then
+  echo "Error: La instancia de Stage no tiene IP pública asignada."
+  echo "Asignando IP elástica..."
+  ELASTIC_IP_STAGE=$(aws ec2 allocate-address --profile stage --domain vpc --query "AllocationId" --output text)
+  aws ec2 associate-address --profile stage --instance-id $INSTANCE_STAGE --allocation-id $ELASTIC_IP_STAGE
+  PUBLIC_IP_STAGE=$(aws ec2 describe-addresses --profile stage --allocation-ids $ELASTIC_IP_STAGE --query "Addresses[0].PublicIp" --output text)
+fi
+
+if [ -z "$PUBLIC_IP_PROD" ] || [ "$PUBLIC_IP_PROD" == "None" ]; then
+  echo "Error: La instancia de Prod no tiene IP pública asignada."
+  echo "Asignando IP elástica..."
+  ELASTIC_IP_PROD=$(aws ec2 allocate-address --profile prod --domain vpc --query "AllocationId" --output text)
+  aws ec2 associate-address --profile prod --instance-id $INSTANCE_PROD --allocation-id $ELASTIC_IP_PROD
+  PUBLIC_IP_PROD=$(aws ec2 describe-addresses --profile prod --allocation-ids $ELASTIC_IP_PROD --query "Addresses[0].PublicIp" --output text)
+fi
+
+echo "IPs públicas de las instancias:"
+echo "IP Pública Operaciones: $PUBLIC_IP_OPERACIONES"
+echo "IP Pública Dev: $PUBLIC_IP_DEV"
+echo "IP Pública Stage: $PUBLIC_IP_STAGE"
+echo "IP Pública Prod: $PUBLIC_IP_PROD"
+
+# Esperar a que SSH esté disponible en todas las instancias
+echo "Esperando a que SSH esté disponible en todas las instancias..."
+for i in {1..30}; do
+  nc -z -w 5 $PUBLIC_IP_OPERACIONES 22 && nc -z -w 5 $PUBLIC_IP_DEV 22 && nc -z -w 5 $PUBLIC_IP_STAGE 22 && nc -z -w 5 $PUBLIC_IP_PROD 22 && break
+  echo "Intentando conectar por SSH... intento $i de 30"
+  sleep 10
+done
+
+# Modificar permisos de la clave privada
+echo "Modificando permisos de la clave privada..."
+chmod 400 test-connectivity-key.pem
+
+# Copiar scripts de prueba a las instancias
+echo "Copiando scripts de prueba a las instancias..."
+scp -i test-connectivity-key.pem -o StrictHostKeyChecking=no test_operaciones.sh ec2-user@$PUBLIC_IP_OPERACIONES:~/
+scp -i test-connectivity-key.pem -o StrictHostKeyChecking=no test_dev.sh ec2-user@$PUBLIC_IP_DEV:~/
+scp -i test-connectivity-key.pem -o StrictHostKeyChecking=no test_stage.sh ec2-user@$PUBLIC_IP_STAGE:~/
+scp -i test-connectivity-key.pem -o StrictHostKeyChecking=no test_prod.sh ec2-user@$PUBLIC_IP_PROD:~/
+
+# Ejecutar pruebas de conectividad
+echo "Ejecutando pruebas de conectividad..."
+echo "Prueba desde Operaciones:"
+ssh -i test-connectivity-key.pem -o StrictHostKeyChecking=no ec2-user@$PUBLIC_IP_OPERACIONES "chmod +x test_operaciones.sh && ./test_operaciones.sh"
+
+echo "Prueba desde Dev:"
+ssh -i test-connectivity-key.pem -o StrictHostKeyChecking=no ec2-user@$PUBLIC_IP_DEV "chmod +x test_dev.sh && ./test_dev.sh"
+
+echo "Prueba desde Stage:"
+ssh -i test-connectivity-key.pem -o StrictHostKeyChecking=no ec2-user@$PUBLIC_IP_STAGE "chmod +x test_stage.sh && ./test_stage.sh"
+
+echo "Prueba desde Prod:"
+ssh -i test-connectivity-key.pem -o StrictHostKeyChecking=no ec2-user@$PUBLIC_IP_PROD "chmod +x test_prod.sh && ./test_prod.sh"
+
+echo "Pruebas de conectividad completadas."
+
+# Limpiar recursos
+echo "Limpiando recursos..."
+
+# Liberar IPs elásticas si se crearon
+if [ ! -z "$ELASTIC_IP_OPERACIONES" ]; then
+  ASSOCIATION_ID=$(aws ec2 describe-addresses --profile operaciones --allocation-ids $ELASTIC_IP_OPERACIONES --query "Addresses[0].AssociationId" --output text)
+  aws ec2 disassociate-address --profile operaciones --association-id $ASSOCIATION_ID
+  aws ec2 release-address --profile operaciones --allocation-id $ELASTIC_IP_OPERACIONES
+fi
+
+if [ ! -z "$ELASTIC_IP_DEV" ]; then
+  ASSOCIATION_ID=$(aws ec2 describe-addresses --profile dev --allocation-ids $ELASTIC_IP_DEV --query "Addresses[0].AssociationId" --output text)
+  aws ec2 disassociate-address --profile dev --association-id $ASSOCIATION_ID
+  aws ec2 release-address --profile dev --allocation-id $ELASTIC_IP_DEV
+fi
+
+if [ ! -z "$ELASTIC_IP_STAGE" ]; then
+  ASSOCIATION_ID=$(aws ec2 describe-addresses --profile stage --allocation-ids $ELASTIC_IP_STAGE --query "Addresses[0].AssociationId" --output text)
+  aws ec2 disassociate-address --profile stage --association-id $ASSOCIATION_ID
+  aws ec2 release-address --profile stage --allocation-id $ELASTIC_IP_STAGE
+fi
+
+if [ ! -z "$ELASTIC_IP_PROD" ]; then
+  ASSOCIATION_ID=$(aws ec2 describe-addresses --profile prod --allocation-ids $ELASTIC_IP_PROD --query "Addresses[0].AssociationId" --output text)
+  aws ec2 disassociate-address --profile prod --association-id $ASSOCIATION_ID
+  aws ec2 release-address --profile prod --allocation-id $ELASTIC_IP_PROD
+fi
+
+# Terminar instancias
+aws ec2 terminate-instances --profile operaciones --instance-ids $INSTANCE_OPERACIONES
+aws ec2 terminate-instances --profile dev --instance-ids $INSTANCE_DEV
+aws ec2 terminate-instances --profile stage --instance-ids $INSTANCE_STAGE
+aws ec2 terminate-instances --profile prod --instance-ids $INSTANCE_PROD
+
+echo "Esperando a que las instancias se terminen..."
+aws ec2 wait instance-terminated --profile operaciones --instance-ids $INSTANCE_OPERACIONES
+aws ec2 wait instance-terminated --profile dev --instance-ids $INSTANCE_DEV
+aws ec2 wait instance-terminated --profile stage --instance-ids $INSTANCE_STAGE
+aws ec2 wait instance-terminated --profile prod --instance-ids $INSTANCE_PROD
+
+# Eliminar grupos de seguridad y key pairs
+aws ec2 delete-security-group --profile operaciones --group-id $SG_OPERACIONES
+aws ec2 delete-security-group --profile dev --group-id $SG_DEV
+aws ec2 delete-security-group --profile stage --group-id $SG_STAGE
+aws ec2 delete-security-group --profile prod --group-id $SG_PROD
+
+aws ec2 delete-key-pair --profile operaciones --key-name test-connectivity-key
+aws ec2 delete-key-pair --profile dev --key-name test-connectivity-key
+aws ec2 delete-key-pair --profile stage --key-name test-connectivity-key
+aws ec2 delete-key-pair --profile prod --key-name test-connectivity-key
+
+rm -f test-connectivity-key.pem
+rm -f test_*.sh
+
+echo "Pruebas de conectividad completadas."

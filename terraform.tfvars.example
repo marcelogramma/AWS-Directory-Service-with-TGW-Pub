@@ -1,0 +1,3 @@
+# Este archivo está vacío intencionalmente.
+# Las variables se cargan desde el script run_terraform_plan_profiles.sh
+# usando las variables de entorno TF_VAR_*

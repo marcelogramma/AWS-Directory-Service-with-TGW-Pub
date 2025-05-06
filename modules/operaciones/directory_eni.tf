@@ -1,0 +1,1 @@
+# Este archivo se mantiene para compatibilidad pero ya no contiene el null_resource\n# Las reglas de seguridad ahora se manejan completamente a través de los recursos aws_security_group_rule\n# en el archivo directory_security.tf

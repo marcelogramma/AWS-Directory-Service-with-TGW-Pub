@@ -1,0 +1,6 @@
+# Archivos de test
+# Ignorar archivos de configuración de conexiones
+cloudshell_dev.sh
+cloudshell_operaciones.sh
+cloudshell_prod.sh
+cloudshell_stage.sh

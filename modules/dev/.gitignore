@@ -1,0 +1,19 @@
+# Archivos de estado de Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+
+# Archivos de variables que pueden contener información sensible
+*.tfvars
+!terraform.tfvars.example
+
+# Archivos de respaldo de Terraform
+*.backup
+
+# Archivos de registro de Terraform
+crash.log
+crash.*.log
+
+# Archivos de plan de Terraform
+*tfplan*

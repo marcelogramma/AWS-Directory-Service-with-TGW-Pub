@@ -1,0 +1,87 @@
+# Archivos de estado de Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+
+# Archivos de variables que pueden contener información sensible
+*.tfvars
+*.tfvars.json
+!terraform.tfvars.example
+
+# Archivos de respaldo de Terraform
+*.backup
+
+# Archivos de registro de Terraform
+crash.log
+crash.*.log
+
+# Archivos de configuración local
+.terraformrc
+terraform.rc
+
+# Archivos de credenciales
+credentials.json
+*credentials*
+*.pem
+*.key
+.env
+
+# Archivos de plan de Terraform
+*tfplan*
+
+# Archivos de IDE y editores
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Archivos de sistema operativo
+.DS_Store
+Thumbs.db
+
+# Archivos de dependencias y módulos
+vendor/
+
+# Archivos de prueba
+.test
+.coverage
+coverage.txt
+coverage.html
+
+# Archivos temporales
+*.tmp
+*.temp
+*.log
+
+# Archivos específicos del proyecto que contienen información sensible
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Archivos de dibujo generados
+*.png
+*.jpg
+*.jpeg
+*.svg
+*.pdf
+terraform_plan.out
+cloudshell_dev.sh
+cloudshell_operaciones.sh
+cloudshell_prod.sh
+cloudshell_stage.sh
+test_results.html
+test_dev.sh
+test_operaciones.sh
+test_prod.sh
+test_stage.sh
+connectivity_test_results/dev_results.txt
+connectivity_test_results/directory_service_connectivity_report.html
+connectivity_test_results/prod_results.txt
+connectivity_test_results/stage_results.txt
+modules/dev/terraform_plan.out
+modules/operaciones/terraform_plan.out
+modules/prod/terraform_plan.out
+modules/stage/terraform_plan.out
