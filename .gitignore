@@ -62,7 +62,6 @@ override.tf.json
 *_override.tf.json
 
 # Archivos de dibujo generados
-*.png
 *.jpg
 *.jpeg
 *.svg
